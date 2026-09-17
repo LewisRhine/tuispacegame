@@ -2,26 +2,70 @@ import {BoxRenderable, ConsolePosition, createCliRenderer, InputRenderable, Text
 import {newState} from "./state.ts";
 
 
-const nameState = newState({
-    target: undefined as Enemy
+const enemyShip = newState({
+    hall: 10,
+    attackCount: 100,
+    systems: {
+        weapons: 3,
+        shields: 5,
+        lifeSupport: 5
+    },
+
+    agro: () => {
+        enemyShip.sub(() => {
+            if (enemyShip.attackCount < 0) {
+                console.log("fire")
+                if (player.systems.shields > 0) {
+                    player.systems.shields -= enemyShip.systems.weapons
+                } else {
+                    player.hall -= enemyShip.systems.weapons
+                }
+                enemyShip.attackCount = 100
+                return
+            }
+
+            setTimeout(() => {
+                enemyShip.attackCount--
+            }, 100)
+
+        })
+    }
 })
 
 
-interface Enemy {
-    id: string
-    health: number
-}
+type Targets = 'weapons' | 'shields' | 'lifeSupport' | null
 
-interface EnemyState {
-    enemies: Map<string, Enemy>;
-}
+const player = newState({
+    target: null as Targets,
+    hall: 10,
+    systems: {
+        weapons: 3,
+        shields: 0,
+        lifeSupport: 5
+    },
 
-const enemyState = newState<EnemyState>({
-    enemies: new Map([
-        ["1", {id: "1", health: 10}],
-        ["2", {id: "2", health: 5}]
-    ]),
-});
+
+    input: (value: string) => {
+        const leftSide = value.split(':')[0];
+        const rightSide = value.split(':')[1];
+
+        if (leftSide === 'target') {
+            if (rightSide === 's') player.target = 'shields'
+        }
+        if (leftSide === 'a') {
+            if (rightSide === 's') player.systems.shields = 5
+        }
+
+        if (value === 'fire') {
+            if (player.target === 'shields') {
+                enemyShip.systems.shields -= player.systems.weapons;
+                if (enemyShip.systems.shields <= 0) {
+                    player.target = null
+                }
+            }
+        }
+    }
+})
 
 
 const renderer = await createCliRenderer({
@@ -52,49 +96,27 @@ const nameInput = new InputRenderable(renderer, {
 })
 
 nameInput.on("enter", (value: string) => {
-    const leftSide: string = value.split(':')[0];
-    const rightSide: string = value.split(':')[1];
-
-    if (leftSide === 'target') {
-        if (enemyState.enemies.has(rightSide)) {
-            nameState.target = enemyState.enemies.get(rightSide)
-        }
-    }
-
-    if (value === 'fire') {
-        if (enemyState.enemies.has(nameState.target)) enemyState.enemies.get(nameState.target).health--
-    }
-
+    player.input(value)
     nameInput.value = ''
 })
 
-const nameDisplay = new TextRenderable(renderer, {})
-const targetDisplay = new TextRenderable(renderer, {})
-content.add(targetDisplay)
-content.add(nameDisplay)
+const playerDisplay = new TextRenderable(renderer, {})
+const enemyDisplay = new TextRenderable(renderer, {})
+
+content.add(playerDisplay)
+content.add(enemyDisplay)
 content.add(nameInput)
 
 
 panel.add(content)
 renderer.root.add(panel)
 renderer.console.show()
+enemyShip.agro()
 
-function updateTarget() {
-    nameDisplay.content = nameState.target ? `${nameState.target.id}: ${nameState.target.health}` : ''
-}
-
-nameState.sub(() => {
-    targetDisplay.content = `target ${nameState.target}`
-    updateTarget()
+player.sub(() => {
+    playerDisplay.content = `hall: ${player.hall}, shields: ${player.systems.shields}, target ${player.target}`
 })
-
-enemyState.sub(() => {
-
-    // if (!!nameState.target) {
-    //     if (enemyState.enemies.has(nameState.target)) {
-    //         const enemy = enemyState.enemies.get(nameState.target)
-    //         nameDisplay.content = `${enemy.id}: ${enemy.health}`
-    //     }
-    // }
+enemyShip.sub(() => {
+    enemyDisplay.content = `hall: ${enemyShip.hall}, shields: ${enemyShip.systems.shields}, next attack ${enemyShip.attackCount}`
 })
 
