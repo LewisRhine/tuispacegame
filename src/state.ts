@@ -4,27 +4,24 @@ const isObject = (value: unknown): value is object => {
     return value !== null && typeof value === "object"
 }
 
-let stateUpdateDelay = false
+const mainSubs = new Map<string, Set<() => void>>()
+const notify = (id: string) => {
+    mainSubs.get(id)?.forEach(onUpdate => onUpdate())
+}
+const addSub = (id: string, onUpdate: () => void) => {
+    if (!mainSubs.has(id)) mainSubs.set(id, new Set())
+    mainSubs.get(id)?.add(onUpdate)
+    onUpdate()
+
+}
 
 export function newState<T extends object>(state: T): T & { sub: StateSub } {
-    const subs = new Set<() => void>()
     const proxyCache = new WeakMap<object, any>()
-
-    const notify = () => {
-        if (stateUpdateDelay) return
-
-        stateUpdateDelay = true
-
-        setImmediate(() => {
-            subs.forEach(onUpdate => onUpdate())
-            stateUpdateDelay = false
-        }, 10)
-    }
+    const id = crypto.randomUUID()
 
     const proxify = <K extends object>(target: K): K => {
         const cached = proxyCache.get(target)
         if (cached) return cached
-
 
         if (target instanceof Map) return proxifyMap(target as Map<any, any>) as K
         if (target instanceof Set) return proxifySet(target as Set<any>) as K
@@ -33,8 +30,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
             get(obj, prop, receiver) {
                 if (prop === "sub") {
                     return (onUpdate: () => void) => {
-                        subs.add(onUpdate)
-                        onUpdate()
+                        addSub(id, onUpdate)
                     }
                 }
 
@@ -48,7 +44,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
             set(obj, prop, value, receiver) {
                 const result = Reflect.set(obj, prop, value, receiver)
 
-                if (result) notify()
+                if (result) notify(id)
 
                 return result
             },
@@ -56,7 +52,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
             deleteProperty(obj, prop) {
                 const result = Reflect.deleteProperty(obj, prop)
 
-                if (result) notify()
+                if (result) notify(id)
 
                 return result
             }
@@ -76,8 +72,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
             get(obj, prop) {
                 if (prop === "sub") {
                     return (onUpdate: () => void) => {
-                        subs.add(onUpdate)
-                        onUpdate()
+                        addSub(id, onUpdate)
                     }
                 }
 
@@ -85,14 +80,14 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
                     case "set":
                         return (key: K, value: V) => {
                             const result = obj.set(key, value)
-                            if (result) notify()
+                            if (result) notify(id)
                             return proxy
                         }
 
                     case "delete":
                         return (key: K) => {
                             const result = obj.delete(key)
-                            if (result) notify()
+                            if (result) notify(id)
                             return result
                         }
 
@@ -100,7 +95,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
                         return () => {
                             if (obj.size > 0) {
                                 obj.clear()
-                                notify()
+                                notify(id)
                             }
                         }
 
@@ -187,8 +182,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
             get(obj, prop) {
                 if (prop === "sub") {
                     return (onUpdate: () => void) => {
-                        subs.add(onUpdate)
-                        onUpdate()
+                        addSub(id, onUpdate)
                     }
                 }
 
@@ -200,7 +194,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
                             obj.add(value)
 
                             if (!hadValue) {
-                                notify()
+                                notify(id)
                             }
 
                             return proxy
@@ -211,7 +205,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
                             const result = obj.delete(value)
 
                             if (result) {
-                                notify()
+                                notify(id)
                             }
 
                             return result
@@ -221,7 +215,7 @@ export function newState<T extends object>(state: T): T & { sub: StateSub } {
                         return () => {
                             if (obj.size > 0) {
                                 obj.clear()
-                                notify()
+                                notify(id)
                             }
                         }
 

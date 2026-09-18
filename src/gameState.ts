@@ -36,10 +36,13 @@ export function playerInput(value: string) {
         if (rightSide === 's') player.target = 'shields'
     }
     if (leftSide === 'a') {
+        if (!rightSide) alerts.alert = 'No system!'
         if (rightSide === 's') player.systems.shields = 5
     }
 
     if (value === 'fire') {
+        if (!player.target) alerts.alert = 'No target selected!'
+
         if (player.target === 'shields') {
             enemyShip.systems.shields -= player.systems.weapons;
             if (enemyShip.systems.shields <= 0) {
@@ -48,3 +51,17 @@ export function playerInput(value: string) {
         }
     }
 }
+
+
+export const alerts = newState({
+    alert: '',
+})
+
+let oldAlert = alerts.alert
+let clearAlert: ReturnType<typeof setTimeout>
+alerts.sub(() => {
+    if (alerts.alert === oldAlert) return
+
+    clearTimeout(clearAlert)
+    clearAlert = setTimeout(() => alerts.alert = '', 1000)
+})

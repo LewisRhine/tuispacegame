@@ -1,5 +1,5 @@
 import {BoxRenderable, ConsolePosition, createCliRenderer, InputRenderable, TextRenderable} from "@opentui/core"
-import {enemyShip, player, playerInput} from "./gameState.ts";
+import {alerts, enemyShip, player, playerInput} from "./gameState.ts";
 
 let attackTimer: ReturnType<typeof setTimeout>
 
@@ -57,10 +57,12 @@ nameInput.on("enter", (value: string) => {
 
 const playerDisplay = new TextRenderable(renderer, {})
 const enemyDisplay = new TextRenderable(renderer, {})
+const alertDisplay = new TextRenderable(renderer, {})
 
 content.add(playerDisplay)
 content.add(enemyDisplay)
 content.add(nameInput)
+content.add(alertDisplay)
 panel.add(content)
 renderer.root.add(panel)
 renderer.keyInput.on("keypress", (key) => {
@@ -73,10 +75,7 @@ renderer.once('destroy', () => {
     clearTimeout(attackTimer)
 })
 
-
-
 player.sub(() => {
-    console.log("update")
     // playerDisplay.content = `hall: ${player.hall}, shields: ${player.systems.shields}, target ${player.target}`
     playerDisplay.content = player.system
 })
@@ -84,7 +83,6 @@ enemyShip.sub(() => {
     enemyDisplay.content = `hall: ${enemyShip.hall}, shields: ${enemyShip.systems.shields}, next attack ${enemyShip.attackCount}`
 })
 
-
-player.hall = 12
-player.systems.shields = 100
-player.systems.weapons = 50
+alerts.sub(() => {
+    alertDisplay.content = alerts.alert
+})
