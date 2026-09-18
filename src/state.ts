@@ -4,11 +4,22 @@ const isObject = (value: unknown): value is object => {
     return value !== null && typeof value === "object"
 }
 
+let stateUpdateDelay = false
+
 export function newState<T extends object>(state: T): T & { sub: StateSub } {
     const subs = new Set<() => void>()
     const proxyCache = new WeakMap<object, any>()
 
-    const notify = () => subs.forEach(onUpdate => onUpdate())
+    const notify = () => {
+        if (stateUpdateDelay) return
+
+        stateUpdateDelay = true
+
+        setImmediate(() => {
+            subs.forEach(onUpdate => onUpdate())
+            stateUpdateDelay = false
+        }, 10)
+    }
 
     const proxify = <K extends object>(target: K): K => {
         const cached = proxyCache.get(target)
