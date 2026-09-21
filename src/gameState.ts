@@ -22,11 +22,10 @@ export const player = newState({
         lifeSupport: 5
     },
 
-    get system() {
+    get systemStatus() {
         return `hall: ${this.hall}, shields: ${this.systems.shields}, target ${this.target}`
     }
 })
-
 
 export function playerInput(value: string) {
     const leftSide = value.split(':')[0];

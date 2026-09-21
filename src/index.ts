@@ -3,25 +3,6 @@ import {alerts, enemyShip, player, playerInput} from "./gameState.ts";
 
 let attackTimer: ReturnType<typeof setTimeout>
 
-
-enemyShip.sub(() => {
-    if (enemyShip.attackCount < 0) {
-        if (player.systems.shields > 0) {
-            player.systems.shields -= enemyShip.systems.weapons
-        } else {
-            player.hall -= enemyShip.systems.weapons
-        }
-        enemyShip.attackCount = 100
-        return
-    }
-
-    attackTimer = setTimeout(() => {
-        enemyShip.attackCount--
-    }, 100)
-
-})
-
-
 const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     consoleOptions: {
@@ -37,7 +18,7 @@ const panel = new BoxRenderable(renderer, {
     justifyContent: "center",
 })
 const content = new BoxRenderable(renderer, {
-    width: 38,
+    width: "100%",
     height: 7,
     padding: 1,
     flexDirection: "column",
@@ -70,15 +51,34 @@ renderer.keyInput.on("keypress", (key) => {
         renderer.console.visible ? renderer.console.hide() : renderer.console.show()
     }
 })
+nameInput.focus()
 renderer.console.show()
 renderer.once('destroy', () => {
     clearTimeout(attackTimer)
 })
 
-player.sub(() => {
-    // playerDisplay.content = `hall: ${player.hall}, shields: ${player.systems.shields}, target ${player.target}`
-    playerDisplay.content = player.system
+enemyShip.sub(() => {
+    if (enemyShip.attackCount < 0) {
+        if (player.systems.shields > 0) {
+            player.systems.shields -= enemyShip.systems.weapons
+        } else {
+            player.hall -= enemyShip.systems.weapons
+        }
+        enemyShip.attackCount = 100
+        return
+    }
+
+    attackTimer = setTimeout(() => {
+        enemyShip.attackCount--
+    }, 500)
 })
+
+
+player.sub(() => {
+    playerDisplay.content = player.systemStatus
+})
+
+
 enemyShip.sub(() => {
     enemyDisplay.content = `hall: ${enemyShip.hall}, shields: ${enemyShip.systems.shields}, next attack ${enemyShip.attackCount}`
 })
@@ -86,3 +86,5 @@ enemyShip.sub(() => {
 alerts.sub(() => {
     alertDisplay.content = alerts.alert
 })
+
+
