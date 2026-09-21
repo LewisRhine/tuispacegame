@@ -1,5 +1,5 @@
 type OnUpdate = () => void
-export type StateSub = (onUpdate: OnUpdate) => void
+export type StateSub = (onUpdate: OnUpdate) => () => void
 
 const isObject = (value: unknown): value is object => {
     return value !== null && typeof value === "object"
@@ -14,23 +14,28 @@ const notify = (id: string, key: string) => {
 const addSub = (onUpdate: (id: string, key: string) => void) => {
     mainSubs.add(onUpdate)
 }
+const removeSub = (onUpdate: (id: string, key: string) => void) => {
+    mainSubs.delete(onUpdate)
+}
 
 
-let getterKeyTracker: {
+interface GetterKeyTracker {
     onUpdate: OnUpdate
     map: Map<string, Set<string>>
-} | null = null
+}
+
+let getterKeyTracker: GetterKeyTracker | null = null
 
 export function traceReads(onUpdate: OnUpdate) {
-    const context = {onUpdate, map: new Map()}
+    const tracker: GetterKeyTracker = {onUpdate, map: new Map()}
 
-    getterKeyTracker = context
+    getterKeyTracker = tracker
 
     onUpdate()
 
     getterKeyTracker = null
 
-    return context.map
+    return tracker.map
 }
 
 export function newState<T extends object>(state: T) {
@@ -44,19 +49,29 @@ export function newState<T extends object>(state: T) {
         const proxy = new Proxy(target, {
             get(obj, prop, receiver) {
                 if (prop === "sub") {
-                    return (onUpdate: OnUpdate) => {
+                    return (onUpdate: OnUpdate): () => void => {
+                        let updateDelay: ReturnType<typeof setTimeout> | null = null
+                        const callUpdate = () => {
+                            if (updateDelay) return
+
+                            updateDelay = setTimeout(() => {
+                                onUpdate()
+                                updateDelay = null
+                            }, 0)
+                        }
                         const map = traceReads(onUpdate)
-                        addSub((objId, key) => {
-
-                            if (!map.has(objId)) {
-                                const keys = map.get(id)
-                                if (keys.has(key)) onUpdate()
-
-                            } else {
-                                const keys = map.get(objId)
-                                if (keys.has(key)) onUpdate()
+                        const sub = (objId: string, key: string) => {
+                            if (map.has(objId)) {
+                                if (map.get(objId)?.has(key)) callUpdate()
+                                return
                             }
-                        })
+
+                            if (map.get(id)?.has(key)) callUpdate()
+                        }
+
+                        addSub(sub)
+
+                        return () => removeSub(sub)
                     }
                 }
 
