@@ -8,6 +8,11 @@ export const enemyShip = newState({
         weapons: 3,
         shields: 5,
         lifeSupport: 5
+    },
+    otherSystems: {
+        weapons: 3,
+        shields: 5,
+        lifeSupport: 5
     }
 })
 

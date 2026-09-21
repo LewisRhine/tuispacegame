@@ -80,11 +80,15 @@ player.sub(() => {
 
 
 enemyShip.sub(() => {
-    enemyDisplay.content = `hall: ${enemyShip.hall}, shields: ${enemyShip.systems.shields}, next attack ${enemyShip.attackCount}`
+    const {hall, attackCount, systems: {shields}} = enemyShip
+    enemyDisplay.content = `hall: ${hall}, shields: ${shields}, next attack ${attackCount}`
 })
 
 alerts.sub(() => {
     alertDisplay.content = alerts.alert
 })
+
+
+
 
 

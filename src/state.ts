@@ -5,63 +5,80 @@ const isObject = (value: unknown): value is object => {
     return value !== null && typeof value === "object"
 }
 
-const mainSubs = new Map<string, Set<(key: string) => void>>()
+const mainSubs = new Set<(id: string, key: string) => void>()
 const notify = (id: string, key: string) => {
-    mainSubs.get(id)?.forEach(onUpdate => {
-        onUpdate(key)
+    mainSubs.forEach(onUpdate => {
+        onUpdate(id, key)
     })
 }
-const addSub = (id: string, onUpdate: (key: string) => void) => {
-    if (!mainSubs.has(id)) mainSubs.set(id, new Set())
-    mainSubs.get(id)?.add(onUpdate)
+const addSub = (onUpdate: (id: string, key: string) => void) => {
+    mainSubs.add(onUpdate)
 }
 
 
-let getterKeyTracker: { onUpdate: OnUpdate; keys: string[] } | null = null
+let getterKeyTracker: {
+    onUpdate: OnUpdate
+    map: Map<string, Set<string>>
+} | null = null
 
 export function traceReads(onUpdate: OnUpdate) {
-    const context = {onUpdate, keys: [] as string[]}
+    const context = {onUpdate, map: new Map()}
 
-    getterKeyTracker = context;
+    getterKeyTracker = context
 
     onUpdate()
 
-    getterKeyTracker = null;
+    getterKeyTracker = null
 
-    return context.keys;
+    return context.map
 }
 
 export function newState<T extends object>(state: T) {
     const proxyCache = new WeakMap<object, any>()
-    const id = crypto.randomUUID()
+    const mainId = crypto.randomUUID()
 
-    const proxify = <K extends object>(target: K): K => {
+    const proxify = <K extends object>(target: K, id: string): K => {
         const cached = proxyCache.get(target)
         if (cached) return cached
 
-
         const proxy = new Proxy(target, {
             get(obj, prop, receiver) {
-                if (prop === "id") return id
-
                 if (prop === "sub") {
                     return (onUpdate: OnUpdate) => {
-                        const keysUsed = traceReads(onUpdate);
-                        addSub(id, (key) => {
-                            if (keysUsed.includes(key)) onUpdate()
+                        const map = traceReads(onUpdate)
+                        addSub((objId, key) => {
+
+                            if (!map.has(objId)) {
+                                const keys = map.get(id)
+                                if (keys.has(key)) onUpdate()
+
+                            } else {
+                                const keys = map.get(objId)
+                                if (keys.has(key)) onUpdate()
+                            }
                         })
                     }
                 }
 
                 const value = Reflect.get(obj, prop, receiver)
 
-                if (isObject(value)) return proxify(value)
 
-                if (getterKeyTracker) getterKeyTracker.keys.push(prop as string);
+                if (isObject(value)) {
+                    if (getterKeyTracker) {
+                        if (!getterKeyTracker.map.has(prop as string)) {
+                            getterKeyTracker.map.set(prop as string, new Set())
+                        }
+                    }
+                    return proxify(value, prop as string)
+                }
+
+                if (getterKeyTracker) {
+                    if (!getterKeyTracker.map.has(id)) getterKeyTracker.map.set(id, new Set())
+                    getterKeyTracker.map.get(id)!.add(prop as string)
+                }
 
                 return value
-            }
-            ,
+            },
 
             set(obj, prop, value, receiver) {
                 const result = Reflect.set(obj, prop, value, receiver)
@@ -69,8 +86,7 @@ export function newState<T extends object>(state: T) {
                 if (result) notify(id, prop as string)
 
                 return result
-            }
-            ,
+            },
 
             deleteProperty(obj, prop) {
                 const result = Reflect.deleteProperty(obj, prop)
@@ -87,5 +103,5 @@ export function newState<T extends object>(state: T) {
     }
 
 
-    return proxify(state) as T & { sub: StateSub }
+    return proxify(state, mainId) as T & { sub: StateSub }
 }
