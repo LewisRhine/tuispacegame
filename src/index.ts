@@ -58,43 +58,44 @@ renderer.once('destroy', () => {
     clearTimeout(attackTimer)
 })
 
-// enemyShip.sub(() => {
-//     if (enemyShip.attackCount < 0) {
-//         if (player.systems.shields > 0) {
-//             player.systems.shields -= enemyShip.systems.weapons
-//         } else {
-//             player.hall -= enemyShip.systems.weapons
-//         }
-//         enemyShip.attackCount = 100
-//         return
-//     }
-//
-//     attackTimer = setTimeout(() => {
-//         enemyShip.attackCount--
-//     }, 500)
-// })
-//
-//
-// player.sub(() => {
-//     playerDisplay.content = player.systemStatus
-// })
-//
-// enemyShip.sub(() => {
-//     const {hall, attackCount, systems: {shields}} = enemyShip
-//     enemyDisplay.content = `hall: ${hall}, shields: ${shields}, next attack ${attackCount}`
-// })
-//
-// alerts.sub(() => {
-//     alertDisplay.content = alerts.alert
-// })
+enemyShip.sub(() => {
+    if (enemyShip.attackCount < 0) {
+        if (player.systems.shields > 0) {
+            player.systems.shields -= enemyShip.systems.weapons
+        } else {
+            player.hall -= enemyShip.systems.weapons
+        }
+        enemyShip.attackCount = 100
+        return
+    }
+
+    attackTimer = setTimeout(() => {
+        enemyShip.attackCount--
+    }, 500)
+})
+
+
+player.sub(() => {
+    playerDisplay.content = player.systemStatus
+})
+
+enemyShip.sub(() => {
+    const {hall, attackCount, systems: {shields}} = enemyShip
+    enemyDisplay.content = `hall: ${hall}, shields: ${shields}, next attack ${attackCount}`
+})
+
+alerts.sub(() => {
+    alertDisplay.content = alerts.alert
+})
 
 const arrayState = newState({logs: [{log: 'hello'}, {log: 'world'}]})
 
 arrayState.sub(() => {
     arrayState.logs.forEach((value) => {
-        console.log({value})
+        console.log(value.log)
     })
 })
 
 let log1 = arrayState.logs[0]
 if (log1) log1.log = 'bye'
+arrayState.logs.push({ log: 'bye3' })

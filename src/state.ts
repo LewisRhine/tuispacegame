@@ -3,36 +3,46 @@ export type StateSub = (onUpdate: OnUpdate) => () => void
 
 type DependencyMap = Map<object, Set<PropertyKey>>
 
+const arrayStructure = Symbol("arrayStructure")
+
+const isArrayIndex = (key: PropertyKey): boolean => {
+    if (typeof key !== "string") return false
+
+    const index = Number(key)
+    return Number.isInteger(index) && index >= 0 && index < 2 ** 32 - 1 && String(index) === key
+}
+
 const isObject = (value: unknown): value is object => {
     return value !== null && typeof value === "object"
 }
 
-let getterKeyTracker: DependencyMap | null = null
+let activeDependencies: DependencyMap | null = null
 
 export function traceReads(onUpdate: OnUpdate): DependencyMap {
     const dependencies: DependencyMap = new Map()
 
-    getterKeyTracker = dependencies
+    const previousDependencies = activeDependencies
+    activeDependencies = dependencies
     try {
         onUpdate()
     } finally {
-        getterKeyTracker = null
+        activeDependencies = previousDependencies
     }
 
     return dependencies
 }
 
 export function newState<T extends object>(state: T) {
-    const proxyCache = new WeakMap<object, any>()
+    const proxyCache = new WeakMap<object, object>()
     const subscribers = new Set<(target: object, key: PropertyKey) => void>()
 
     const track = (target: object, key: PropertyKey) => {
-        if (!getterKeyTracker) return
+        if (!activeDependencies) return
 
-        let keys = getterKeyTracker.get(target)
+        let keys = activeDependencies.get(target)
         if (!keys) {
             keys = new Set()
-            getterKeyTracker.set(target, keys)
+            activeDependencies.set(target, keys)
         }
 
         keys.add(key)
@@ -42,9 +52,17 @@ export function newState<T extends object>(state: T) {
         subscribers.forEach(subscriber => subscriber(target, key))
     }
 
+    const notifyChange = (target: object, key: PropertyKey) => {
+        notify(target, key)
+
+        if (Array.isArray(target) && (key === "length" || isArrayIndex(key))) {
+            notify(target, arrayStructure)
+        }
+    }
+
     const proxify = <K extends object>(target: K): K => {
         const cached = proxyCache.get(target)
-        if (cached) return cached
+        if (cached) return cached as K
 
         const proxy = new Proxy(target, {
             get(obj, prop, receiver) {
@@ -59,11 +77,10 @@ export function newState<T extends object>(state: T) {
                             updateDelay = setTimeout(() => {
                                 updateDelay = null
 
-                                if (!disposed) onUpdate()
+                                if (!disposed) dependencies = traceReads(onUpdate)
                             }, 0)
                         }
-                        const dependencies = traceReads(onUpdate)
-                        console.log(dependencies)
+                        let dependencies = traceReads(onUpdate)
                         const sub = (changedTarget: object, key: PropertyKey) => {
                             if (dependencies.get(changedTarget)?.has(key)) {
                                 callUpdate()
@@ -86,17 +103,9 @@ export function newState<T extends object>(state: T) {
 
                 const value = Reflect.get(obj, prop, receiver)
 
-                if (Array.isArray(target) && prop === "forEach") {
-                    target.forEach((item, index) => {
-                        if (isObject(item)) {
-                            Object.keys(item).forEach((key) => {
-                                track(item, key)
-                            })
-                        }
-                    })
-
+                if (Array.isArray(obj) && (prop === Symbol.iterator || typeof value === "function")) {
+                    track(obj, arrayStructure)
                 }
-                Array.isArray(value)
                 track(obj, prop)
 
                 return isObject(value) ? proxify(value) : value
@@ -106,7 +115,9 @@ export function newState<T extends object>(state: T) {
                 const previousValue = Reflect.get(obj, prop, receiver)
                 const result = Reflect.set(obj, prop, value, receiver)
 
-                if (result && !Object.is(previousValue, value)) notify(obj, prop)
+                if (result && !Object.is(previousValue, value)) {
+                    notifyChange(obj, prop)
+                }
 
                 return result
             },
@@ -115,7 +126,9 @@ export function newState<T extends object>(state: T) {
                 const existed = Reflect.has(obj, prop)
                 const result = Reflect.deleteProperty(obj, prop)
 
-                if (result && existed) notify(obj, prop)
+                if (result && existed) {
+                    notifyChange(obj, prop)
+                }
 
                 return result
             }

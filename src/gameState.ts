@@ -63,9 +63,9 @@ export const alerts = newState({
 
 let oldAlert = alerts.alert
 let clearAlert: ReturnType<typeof setTimeout>
-// alerts.sub(() => {
-//     if (alerts.alert === oldAlert) return
-//
-//     clearTimeout(clearAlert)
-//     clearAlert = setTimeout(() => alerts.alert = '', 1000)
-// })
+alerts.sub(() => {
+    if (alerts.alert === oldAlert) return
+
+    clearTimeout(clearAlert)
+    clearAlert = setTimeout(() => alerts.alert = '', 1000)
+})
