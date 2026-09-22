@@ -63,6 +63,7 @@ export function newState<T extends object>(state: T) {
                             }, 0)
                         }
                         const dependencies = traceReads(onUpdate)
+                        console.log(dependencies)
                         const sub = (changedTarget: object, key: PropertyKey) => {
                             if (dependencies.get(changedTarget)?.has(key)) {
                                 callUpdate()
@@ -85,6 +86,17 @@ export function newState<T extends object>(state: T) {
 
                 const value = Reflect.get(obj, prop, receiver)
 
+                if (Array.isArray(target) && prop === "forEach") {
+                    target.forEach((item, index) => {
+                        if (isObject(item)) {
+                            Object.keys(item).forEach((key) => {
+                                track(item, key)
+                            })
+                        }
+                    })
+
+                }
+                Array.isArray(value)
                 track(obj, prop)
 
                 return isObject(value) ? proxify(value) : value
